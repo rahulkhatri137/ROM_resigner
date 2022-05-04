@@ -17,7 +17,7 @@ args = parser.parse_args()
 romdir = args.RomDir
 securitydir = args.SecurityDir
 
-mac_permissions = find("*mac_permissions*", romdir + "/etc/selinux")
+mac_permissions = find("*mac_permissions*", f"{romdir}/etc/selinux")
 
 xmldoc = minidom.parse(mac_permissions)
 itemlist = xmldoc.getElementsByTagName('signer')
@@ -28,50 +28,49 @@ signatures64 = []
 seinfos = []
 usedseinfos = []
 
-tmpdir = cwd + "/tmp"
-signapkjar = cwd + "/signapk.jar"
+tmpdir = f"{cwd}/tmp"
+signapkjar = f"{cwd}/signapk.jar"
 os_info = os.uname()[0]
-signapklibs = cwd + "/" + os_info
+signapklibs = f"{cwd}/{os_info}"
 
 def CheckCert(filetoopen, cert):
     f = open(filetoopen)
     s = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    if s.find(cert) != -1:
-        return True
-    else:
-        return False
+    return s.find(cert) != -1
 
 def getcert(jar, out):
-    extractjar = "7z e " + jar + " META-INF/CERT.RSA -o" + tmpdir
+    extractjar = f"7z e {jar} META-INF/CERT.RSA -o{tmpdir}"
     output = subprocess.check_output(['bash','-c', extractjar])
 
-    if os.path.exists(tmpdir + "/CERT.RSA"):
-        extractcert = "openssl pkcs7 -in "+ tmpdir + "/CERT.RSA -print_certs -inform DER -out " + out
+    if os.path.exists(f"{tmpdir}/CERT.RSA"):
+        extractcert = f"openssl pkcs7 -in {tmpdir}/CERT.RSA -print_certs -inform DER -out {out}"
+
         output = subprocess.check_output(['bash','-c', extractcert])
-        os.remove(tmpdir + "/CERT.RSA")
+        os.remove(f"{tmpdir}/CERT.RSA")
 
     #print(output)
 
 def sign(jar, certtype):
-    if not os.path.exists(securitydir + "/" + certtype + ".pk8"):
-        print(certtype + ".pk8 not found in security dir")
+    if not os.path.exists(f"{securitydir}/{certtype}.pk8"):
+        print(f"{certtype}.pk8 not found in security dir")
         return False
-    
-    jartmpdir = tmpdir + "/JARTMP"
+
+    jartmpdir = f"{tmpdir}/JARTMP"
     if not os.path.exists(jartmpdir):
         os.makedirs(jartmpdir)
 
-    signjarcmd = "java -XX:+UseCompressedOops -Xms2g -Xmx2g -Djava.library.path=" + signapklibs + " -jar " + signapkjar + " " + securitydir + "/" + certtype + ".x509.pem " + securitydir + "/" + certtype + ".pk8 " + jar + " " + jartmpdir + "/" + os.path.basename(jar)
+    signjarcmd = f"java -XX:+UseCompressedOops -Xms2g -Xmx2g -Djava.library.path={signapklibs} -jar {signapkjar} {securitydir}/{certtype}.x509.pem {securitydir}/{certtype}.pk8 {jar} {jartmpdir}/{os.path.basename(jar)}"
 
-    movecmd = "mv -f " + jartmpdir + "/" + os.path.basename(jar) + " " + jar
+
+    movecmd = f"mv -f {jartmpdir}/{os.path.basename(jar)} {jar}"
     try:
         output = subprocess.check_output(['bash','-c', signjarcmd])
         output += subprocess.check_output(['bash','-c', movecmd])
         #print(output)
-        print(os.path.basename(jar) + " signed as " + seinfo)
+        print(f"{os.path.basename(jar)} signed as {seinfo}")
         usedseinfos.append(seinfo) if seinfo not in usedseinfos else usedseinfos
     except subprocess.CalledProcessError:
-        print("Signing " + os.path.basename(jar) + " failed")
+        print(f"Signing {os.path.basename(jar)} failed")
 
 index = 0
 for s in itemlist:
